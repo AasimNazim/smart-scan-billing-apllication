@@ -6,6 +6,8 @@ import 'features/scan/scan_cart_screen.dart';
 import 'features/billing/bill_summary_screen.dart';
 import 'features/inventory/inventory_screen.dart';
 import 'features/history/billing_history_screen.dart';
+import 'features/customer/shop_selection_screen.dart';
+import 'features/customer/product_price_scanner_screen.dart';
 
 void main() {
   runApp(const SmartScanApp());
@@ -33,6 +35,8 @@ class SmartScanApp extends StatelessWidget {
         '/generate-bill': (context) => const BillSummaryScreen(),
         '/inventory': (context) => const InventoryScreen(),
         '/history': (context) => const BillingHistoryScreen(),
+        '/shop-selection': (context) => const ShopSelectionScreen(),
+        '/product-price-scanner': (context) => const ProductPriceScannerScreen(),
       },
     );
   }
@@ -95,7 +99,7 @@ class RoleSelectionScreen extends StatelessWidget {
                 title: "Customer",
                 icon: Icons.person,
                 onTap: () {
-                  // TODO: Implement Customer Flow
+                  Navigator.pushNamed(context, '/shop-selection');
                 },
               ),
               const SizedBox(height: 25),

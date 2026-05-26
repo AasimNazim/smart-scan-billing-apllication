@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../../services/firebase_auth_service.dart';
+import '../../services/firestore_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -13,6 +16,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -21,6 +25,71 @@ class _SignupScreenState extends State<SignupScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSignUp() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final error = await FirebaseAuthService.signUp(
+      email: _emailController.text,
+      password: _passwordController.text,
+      confirmPassword: _confirmPasswordController.text,
+    );
+
+    if (!mounted) return;
+
+    if (error == null) {
+      // Sign up successful, now save shop data to Firestore
+      final shopError = await FirestoreService.saveUserShopData(
+        shopName: _usernameController.text,
+        email: _emailController.text,
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (shopError == null) {
+        // Shop data saved successfully
+        Fluttertoast.showToast(
+          msg: 'Account created successfully! Please login.',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+        // Navigate back to login screen
+        Navigator.pop(context);
+      } else {
+        // Show shop data save error
+        Fluttertoast.showToast(
+          msg: shopError,
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+      }
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Show sign up error
+      Fluttertoast.showToast(
+        msg: error,
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+    }
   }
 
   @override
@@ -64,7 +133,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     const SizedBox(height: 30),
                     _buildTextField(
                       controller: _usernameController,
-                      hint: "Username",
+                      hint: " Shop Name",
                       icon: Icons.person_outline,
                     ),
                     const SizedBox(height: 15),
@@ -102,11 +171,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton(
-                        onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                             Navigator.pushReplacementNamed(context, '/dashboard');
-                          }
-                        },
+                        onPressed: _isLoading ? null : _handleSignUp,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1B4965),
                           foregroundColor: Colors.white,
@@ -116,10 +181,19 @@ class _SignupScreenState extends State<SignupScreen> {
                           ),
                           elevation: 5,
                         ),
-                        child: const Text(
-                          "SIGN UP",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                "SIGN UP",
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -131,7 +205,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           style: TextStyle(color: Colors.white70),
                         ),
                         GestureDetector(
-                          onTap: () => Navigator.pop(context),
+                          onTap: _isLoading ? null : () => Navigator.pop(context),
                           child: const Text(
                             "Login",
                             style: TextStyle(
@@ -165,6 +239,7 @@ class _SignupScreenState extends State<SignupScreen> {
       controller: controller,
       obscureText: isPassword,
       keyboardType: keyboardType,
+      enabled: !_isLoading,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: Colors.white70),

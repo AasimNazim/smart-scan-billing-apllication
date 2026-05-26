@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'settings_popup.dart';
+import '../../services/firestore_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -10,6 +11,22 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+  String _shopName = "Loading...";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadShopName();
+  }
+
+  Future<void> _loadShopName() async {
+    final shopName = await FirestoreService.getShopName();
+    if (mounted) {
+      setState(() {
+        _shopName = shopName ?? "My Shop";
+      });
+    }
+  }
 
   void _onItemTapped(int index) {
     if (index == 3) {
@@ -88,9 +105,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(height: 5),
-              const Text(
-                "Aasim",
-                style: TextStyle(
+              Text(
+                _shopName,
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 34,
                   fontWeight: FontWeight.bold,

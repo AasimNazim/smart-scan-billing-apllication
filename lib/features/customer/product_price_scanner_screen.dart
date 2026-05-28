@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_barcode_scanner_plus/flutter_barcode_scanner_plus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProductPriceScannerScreen extends StatefulWidget {
   const ProductPriceScannerScreen({super.key});
@@ -8,43 +10,117 @@ class ProductPriceScannerScreen extends StatefulWidget {
 }
 
 class _ProductPriceScannerScreenState extends State<ProductPriceScannerScreen> {
-  bool _isScanning = true;
-  Map<String, String>? _foundProduct;
+  bool _isScanning = false;
+  Map<String, dynamic>? _foundProduct;
+  String? _lastScannedBarcode;
 
-  final List<Map<String, String>> _mockProducts = [
-    {"name": "Lays Classic", "price": "50"},
-    {"name": "Coca Cola 500ml", "price": "80"},
-    {"name": "Oreo Biscuits", "price": "40"},
-    {"name": "Dairy Milk", "price": "100"},
-  ];
-  int _currentIndex = 0;
+  Future<void> _scanProduct(String shopId) async {
+    String barcodeScanRes;
+    try {
+      barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
+        "#ff6666",
+        "Cancel",
+        true,
+        ScanMode.BARCODE,
+      );
+    } catch (e) {
+      barcodeScanRes = 'Failed to get platform version.';
+    }
 
-  void _simulateScan() {
+    if (!mounted) return;
+
+    if (barcodeScanRes == "-1") {
+      setState(() {
+        _isScanning = false;
+      });
+      return;
+    }
+
+    _handleBarcode(shopId, barcodeScanRes);
+  }
+
+  Future<void> _handleBarcode(String shopId, String barcodeScanRes) async {
+    final String barcode = barcodeScanRes.trim();
     setState(() {
       _isScanning = true;
       _foundProduct = null;
+      _lastScannedBarcode = barcode;
     });
 
-    Future.delayed(const Duration(seconds: 2), () {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(shopId)
+          .collection('products')
+          .where('id', isEqualTo: barcode)
+          .get();
+
+      if (mounted) {
+        if (snapshot.docs.isNotEmpty) {
+          setState(() {
+            _isScanning = false;
+            _foundProduct = snapshot.docs.first.data();
+          });
+        } else {
+          setState(() {
+            _isScanning = false;
+            _foundProduct = null;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Product ($barcode) not found in this shop.")),
+          );
+        }
+      }
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isScanning = false;
-          _foundProduct = _mockProducts[_currentIndex];
-          _currentIndex = (_currentIndex + 1) % _mockProducts.length;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error fetching product: $e")),
+        );
       }
-    });
+    }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _simulateScan();
+  void _showManualEntryDialog(BuildContext context, String shopId) {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Manual Price Check"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: "Enter Barcode / Product ID",
+            hintText: "e.g. 12345678",
+          ),
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                Navigator.pop(context);
+                _handleBarcode(shopId, controller.text);
+              }
+            },
+            child: const Text("Check Price"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final String shopName = ModalRoute.of(context)!.settings.arguments as String? ?? "Smart Mart";
+    final Map<String, dynamic> args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>? ?? {};
+    final String shopName = args['shopName'] ?? "Shop";
+    final String shopId = args['shopId'] ?? "";
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A3D62),
@@ -97,43 +173,51 @@ class _ProductPriceScannerScreenState extends State<ProductPriceScannerScreen> {
           Expanded(
             child: Stack(
               children: [
-                Container(
-                  width: double.infinity,
-                  height: double.infinity,
-                  decoration: const BoxDecoration(
-                    image: DecorationImage(
-                      image: NetworkImage("https://images.unsplash.com/photo-1586880244406-556ebe35f282"),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
+                // Container(
+                //   width: double.infinity,
+                //   height: double.infinity,
+                  // decoration: const BoxDecoration(
+                  //   image: DecorationImage(
+                  //     image: NetworkImage("https://images.unsplash.com/photo-1586880244406-556ebe35f282"),
+                  //     fit: BoxFit.cover,
+                  //   ),
+                  // ),
+                // ),
                 Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        width: 250,
-                        height: 250,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white, width: 2),
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Stack(
-                          children: [
-                            _buildCorner(top: 0, left: 0),
-                            _buildCorner(top: 0, right: 0),
-                            _buildCorner(bottom: 0, left: 0),
-                            _buildCorner(bottom: 0, right: 0),
-                            Center(
-                              child: Container(
-                                width: 230,
-                                height: 2,
-                                color: _isScanning ? Colors.red : Colors.greenAccent,
+                      GestureDetector(
+                        onTap: () => _scanProduct(shopId),
+                        child: Container(
+                          width: 250,
+                          height: 250,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.white, width: 2),
+                            borderRadius: BorderRadius.circular(30),
+                            color: Colors.black26,
+                          ),
+                          child: Stack(
+                            children: [
+                              _buildCorner(top: 0, left: 0),
+                              _buildCorner(top: 0, right: 0),
+                              _buildCorner(bottom: 0, left: 0),
+                              _buildCorner(bottom: 0, right: 0),
+                              Center(
+                                child: Container(
+                                  width: 230,
+                                  height: 2,
+                                  color: _isScanning ? Colors.red : Colors.greenAccent,
+                                ),
                               ),
-                            ),
-                            if (_isScanning)
-                              const Center(child: CircularProgressIndicator(color: Colors.white70)),
-                          ],
+                              if (_isScanning)
+                                const Center(child: CircularProgressIndicator(color: Colors.white70)),
+                              if (!_isScanning && _foundProduct == null)
+                                const Center(
+                                  child: Icon(Icons.qr_code_scanner, color: Colors.white, size: 60),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 30),
@@ -143,15 +227,34 @@ class _ProductPriceScannerScreenState extends State<ProductPriceScannerScreen> {
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Row(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(_isScanning ? Icons.sync : Icons.check_circle, color: Colors.white, size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              _isScanning ? "Scanning..." : "Scan Complete",
-                              style: const TextStyle(color: Colors.white),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(_isScanning ? Icons.sync : Icons.touch_app, color: Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _isScanning ? "Scanning..." : "Tap Box to Scan",
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ],
                             ),
+                            if (!_isScanning) ...[
+                              const SizedBox(height: 8),
+                              GestureDetector(
+                                onTap: () => _showManualEntryDialog(context, shopId),
+                                child: const Text(
+                                  "Or Enter Manually",
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -162,8 +265,8 @@ class _ProductPriceScannerScreenState extends State<ProductPriceScannerScreen> {
             ),
           ),
 
-          // Bottom Product Details Card - Adjusted size and removed scroll
-          if (!_isScanning)
+          // Bottom Product Details Card
+          if (!_isScanning && _foundProduct != null)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(25),
@@ -175,7 +278,7 @@ class _ProductPriceScannerScreenState extends State<ProductPriceScannerScreen> {
                 ),
               ),
               child: Column(
-                mainAxisSize: MainAxisSize.min, // Fits the content exactly
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -227,7 +330,7 @@ class _ProductPriceScannerScreenState extends State<ProductPriceScannerScreen> {
                     width: double.infinity,
                     height: 50,
                     child: OutlinedButton.icon(
-                      onPressed: _simulateScan,
+                      onPressed: () => _scanProduct(shopId),
                       icon: const Icon(Icons.qr_code_scanner),
                       label: const Text(
                         "Scan Another Product",

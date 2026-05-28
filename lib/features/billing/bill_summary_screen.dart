@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class BillSummaryScreen extends StatelessWidget {
-  final List<Map<String, dynamic>> cartItems;
+  const BillSummaryScreen({super.key});
 
-  const BillSummaryScreen({super.key, this.cartItems = const []});
-
-  int get total {
+  int calculateTotal(List<Map<String, dynamic>> items) {
     int sum = 0;
-    for (var item in cartItems) {
+    for (var item in items) {
       sum += (item["qty"] as int) * (item["price"] as int);
     }
     return sum;
@@ -18,17 +18,61 @@ class BillSummaryScreen extends StatelessWidget {
     return "#${Random().nextInt(99999).toString().padLeft(5, '0')}";
   }
 
+  Future<void> saveBill(BuildContext context, String billNo, int total, List<Map<String, dynamic>> items) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('history')
+          .add({
+        'billNo': billNo,
+        'amount': total,
+        'date': DateTime.now().toIso8601String(),
+        'items': items,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading
+        Navigator.popUntil(context, ModalRoute.withName('/dashboard'));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // Close loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error saving bill: $e")),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // If cartItems is empty, use sample data for demonstration
-    final List<Map<String, dynamic>> displayItems = cartItems.isEmpty ? [
-      {"name": "Espresso", "qty": 2, "price": 100},
-      {"name": "Latte", "qty": 1, "price": 250},
-      {"name": "Cappuccino", "qty": 3, "price": 50},
-    ] : cartItems;
+    // Extract cart items from Navigator arguments
+    final List<Map<String, dynamic>> passedItems = ModalRoute.of(context)?.settings.arguments as List<Map<String, dynamic>>? ?? [];
+
+    // If passedItems is empty, use sample data for demonstration
+    final List<Map<String, dynamic>> displayItems = passedItems.isEmpty
+        ? [
+            {"name": "Espresso", "qty": 2, "price": 100},
+            {"name": "Latte", "qty": 1, "price": 250},
+            {"name": "Cappuccino", "qty": 3, "price": 50},
+          ]
+        : passedItems;
 
     final String billNo = generateBillNumber();
     final DateTime now = DateTime.now();
+    final int totalAmount = calculateTotal(displayItems);
 
     return Scaffold(
       backgroundColor: const Color(0xFF031B3A),
@@ -191,7 +235,7 @@ class BillSummaryScreen extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        "Rs.${cartItems.isEmpty ? 500 : total.toString()}",
+                        "Rs.$totalAmount",
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -231,9 +275,7 @@ class BillSummaryScreen extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
+                          onPressed: () => saveBill(context, billNo, totalAmount, displayItems),
                           child: const Text("Done"),
                         ),
                       ),

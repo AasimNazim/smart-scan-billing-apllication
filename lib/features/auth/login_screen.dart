@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import '../../services/firebase_auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,12 +13,55 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final error = await FirebaseAuthService.login(
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (error == null) {
+      // Login successful
+      Fluttertoast.showToast(
+        msg: 'Login successful!',
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.green,
+        textColor: Colors.white,
+      );
+      Navigator.pushReplacementNamed(context, '/dashboard');
+    } else {
+      // Show error message
+      Fluttertoast.showToast(
+        msg: error,
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+    }
   }
 
   @override
@@ -60,8 +105,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 40),
                     _buildTextField(
                       controller: _emailController,
-                      hint: "Email or Username",
-                      icon: Icons.person_outline,
+                      hint: "Email",
+                      icon: Icons.email_outlined,
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(
@@ -75,12 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton(
-                        onPressed: () {
-                          if (_formKey.currentState!.validate()) {
-                            // Successful login simulation
-                            Navigator.pushReplacementNamed(context, '/dashboard');
-                          }
-                        },
+                        onPressed: _isLoading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1B4965),
                           foregroundColor: Colors.white,
@@ -90,10 +130,19 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           elevation: 5,
                         ),
-                        child: const Text(
-                          "LOGIN",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                "LOGIN",
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -105,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           style: TextStyle(color: Colors.white70),
                         ),
                         GestureDetector(
-                          onTap: () {
+                          onTap: _isLoading ? null : () {
                             Navigator.pushNamed(context, '/signup');
                           },
                           child: const Text(
@@ -121,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 10),
                     TextButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: _isLoading ? null : () => Navigator.pop(context),
                       child: const Text(
                         "Back to Role Selection",
                         style: TextStyle(color: Colors.white60),
@@ -146,6 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return TextFormField(
       controller: controller,
       obscureText: isPassword,
+      enabled: !_isLoading,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: Colors.white70),

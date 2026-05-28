@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
@@ -9,7 +11,19 @@ import 'features/history/billing_history_screen.dart';
 import 'features/customer/shop_selection_screen.dart';
 import 'features/customer/product_price_scanner_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase (Android only)
+  if (!kIsWeb) {
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      print('Firebase initialization error: $e');
+    }
+  }
+  // For Web: Firebase is initialized via index.html scripts
+  
   runApp(const SmartScanApp());
 }
 
@@ -71,7 +85,7 @@ class RoleSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               const Text(
-                "Welcome To SmartScan",
+                "Welcome To Smart Scan",
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,

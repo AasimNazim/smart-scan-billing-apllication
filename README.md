@@ -7,6 +7,14 @@ A Flutter-based mobile app for scanning items and managing billing quickly and r
 - Create and manage bills/invoices.
 - Persist data locally and sync with Firebase (optional).
 
+## Project Contribution
+
+My Contribution:
+- Designed and implemented the complete Flutter user interface
+- Created responsive UI screens and layouts
+- Improved user experience through clean navigation and visual design
+- Integrated UI components with the existing application structure
+
 **Prerequisites**
 - Install Flutter SDK (stable channel) and ensure `flutter` is on your PATH.
 - For Android: Android SDK and an emulator or device.
